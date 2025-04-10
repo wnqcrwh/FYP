@@ -22,11 +22,12 @@ def _make_divisible(v, divisor, min_value=None):
 class ConvBNPReLU(nn.Sequential):
     def __init__(self, in_planes, out_planes, kernel_size=3, stride=1, groups=1):
         padding = (kernel_size - 1) // 2
-        super(ConvBNPReLU, self).__init__(
+        layers = [
             nn.Conv2d(in_planes, out_planes, kernel_size, stride, padding, groups=groups, bias=False),
             nn.BatchNorm2d(out_planes),
             nn.PReLU(num_parameters=out_planes, init=0.25)
-        )
+        ]
+        super(ConvBNPReLU, self).__init__(*layers)
 
 class DepthwiseSeparableConv(nn.Module):
     def __init__(self, in_planes, out_planes, kernel_size, padding, bias=False):
@@ -133,14 +134,14 @@ class MobileFaceNet(nn.Module):
             for i in range(n):
                 stride = s if i == 0 else 1
                 features.append(block(input_channel, output_channel, stride, expand_ratio=t))
-                input_channel = output_channel
-        # building last several layers
+                input_channel = output_channel   
+        # make it nn.Sequential
+        self.features = nn.Sequential(*features)
+         # building last several layers
         self.conv2 = ConvBNPReLU(input_channel, self.last_channel, kernel_size=1)
         self.gdconv = GDConv(in_planes=512, out_planes=512, kernel_size=7, padding=0)
         self.conv3 = nn.Conv2d(512, 128, kernel_size=1)
         self.bn = nn.BatchNorm2d(128)
-        # make it nn.Sequential
-        self.features = nn.Sequential(*features)
 
         # weight initialization
         for m in self.modules():
@@ -156,6 +157,9 @@ class MobileFaceNet(nn.Module):
                 nn.init.zeros_(m.bias)
 
     def forward(self, x):
+        B, T, C, H, W = x.shape
+        x = x.view(B * T, C, H, W)
+
         x = self.conv1(x)
         x = self.dw_conv(x)
 
@@ -165,5 +169,6 @@ class MobileFaceNet(nn.Module):
         x = self.gdconv(x)
         x = self.conv3(x)
         x = self.bn(x)
-        x = x.view(x.size(0), -1)
+
+        x = x.view(B, T, -1)
         return x

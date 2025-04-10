@@ -12,8 +12,8 @@ import random
 import librosa
 
 class MELD_Dataset(Dataset):
-    def __init__(self, csv_path, video_dir, image_size=(224, 224), num_frames=16, sr=16000,
-                 image_augment=False, audio_augment=False, feature_type='mfcc', mode='train'):
+    def __init__(self, csv_path, video_dir, image_size=(112, 112), num_frames=16, sr=16000,
+                 image_augment=False, audio_augment=False, feature_type='log_mel', mode='train'):
         self.df = pd.read_csv(csv_path)
         self.video_dir = video_dir
         self.image_size = image_size
@@ -95,27 +95,31 @@ class MELD_Dataset(Dataset):
                 return torch.tensor(audio[:self.sr*2]).float()
             elif self.feature_type == 'mfcc':
                 feature = librosa.feature.mfcc(y=audio, sr=self.sr, n_mfcc=20)
+                feature = self.pad_or_truncate(feature, 128)
+                return torch.tensor(feature).float()
             elif self.feature_type == 'log_mel':
-                mel = librosa.feature.melspectrogram(y=audio, sr=self.sr, n_mels=40)
+                hop_length = 80
+                num_chunks = 6
+                target_len = num_chunks * 128
+                mel = librosa.feature.melspectrogram(y=audio, sr=self.sr, n_mels=128, hop_length=hop_length)
                 feature = librosa.power_to_db(mel, ref=np.max)
+                feature = self.pad_or_truncate(feature, target_len)
+                chunks = [feature[:, i*128:(i+1)*128][np.newaxis, :, :] for i in range(num_chunks)]
+                return torch.tensor(np.stack(chunks)).float()
             else:
                 raise ValueError("Unsupported feature type. Choose 'waveform', 'mfcc', or 'log_mel'.")
 
-            # padding/truncate
-            target_len = 128
-            if feature.shape[1] < target_len:
-                pad_width = target_len - feature.shape[1]
-                feature = np.pad(feature, ((0, 0), (0, pad_width)), mode='constant')
-            else:
-                feature = feature[:, :target_len]
+    def pad_or_truncate(self, feature, target_len):
+        if feature.shape[1] < target_len:
+            pad_width = target_len - feature.shape[1]
+            feature = np.pad(feature, ((0, 0), (0, pad_width)), mode='constant')
+        else:
+            feature = feature[:, :target_len]
+        return feature
 
-            return torch.tensor(feature).float()
-        
     def augment_waveform(self, audio):
-        if random.random() < 0.5:
-            audio = audio + np.random.normal(0, 0.005, audio.shape)
-        if random.random() < 0.5:
-            audio = librosa.effects.time_stretch(audio, rate=random.uniform(0.8, 1.2))
+        audio = audio + np.random.normal(0, 0.005, audio.shape)
+        audio = librosa.effects.time_stretch(audio, rate=random.uniform(0.8, 1.2))
         
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
