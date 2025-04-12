@@ -1,4 +1,6 @@
 /condaenv/
 MELD
 MELD.Raw.tar.gz
+__pycache__/
+1.log
 

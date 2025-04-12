@@ -62,8 +62,9 @@ class MELD_Dataset(Dataset):
         for i in range(self.num_frames):
             t = i * (duration / self.num_frames)
             frame = clip.get_frame(t)
-            original = frame.copy()         
-            origin_frame_list.append(original)
+            original = frame.copy()
+            original = cv2.resize(original, (640, 360))         
+            origin_frame_list.append(torch.from_numpy(original).permute(2, 0, 1))
             frame = cv2.resize(frame, self.image_size)
             frame = self.image_transform(frame)
             frame_list.append(frame)
@@ -93,9 +94,11 @@ class MELD_Dataset(Dataset):
 
             # 加载音频 waveform
             audio, _ = librosa.load(tmpfile.name, sr=self.sr)
+            if audio is None or len(audio) == 0 or audio.shape[0] == 0:
+                print(f"Warning: Audio extraction failed for {video_path}.")
+                return torch.zeros((6, 1, 128, 128), dtype=torch.float32)
             if self.audio_augment and self.mode == 'train':
-                audio = self.augment_waveform(audio)
-            
+                audio = self.augment_waveform(audio)      
             if self.feature_type == 'waveform':
                 return torch.tensor(audio[:self.sr*2]).float()
             elif self.feature_type == 'mfcc':
@@ -124,8 +127,9 @@ class MELD_Dataset(Dataset):
 
     def augment_waveform(self, audio):
         audio = audio + np.random.normal(0, 0.005, audio.shape)
-        audio = librosa.effects.time_stretch(audio, rate=random.uniform(0.8, 1.2))
-        
+        audio = librosa.effects.time_stretch(audio, rate=random.uniform(0.9, 1.1))
+        return audio
+    
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
         filename = f"dia{row['Dialogue_ID']}_utt{row['Utterance_ID']}.mp4"
@@ -148,7 +152,7 @@ class MELD_Dataset(Dataset):
         # Get labels
         emotion_label = torch.tensor(row["Emotion"]).long()
 
-        return (origin_frames, frames, audio), (emotion_label, sentiment_label)
+        return (origin_frames, frames, audio), emotion_label
 
 
         

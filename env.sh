@@ -12,4 +12,4 @@ source /userhome/2072/fyp24093/anaconda3/bin/activate ./condaenv
 # conda install -c conda-forge ffmpeg
 
 
-python 1.py
+python train.py > 1.log 2>&1 &

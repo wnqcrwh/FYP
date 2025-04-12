@@ -4,7 +4,7 @@ import torch.optim as optim
 import os
 from tqdm import tqdm
 from config import Config
-from data import MultiModalDataset
+from data import MELD_Dataset
 from torch.utils.data import DataLoader
 from models.multi_modal_model import MultiModalModel
 from utils import evaluate
@@ -14,7 +14,7 @@ from utils import evaluate
 C = Config()
 
 # Initialize Data
-train_dataset = MultiModalDataset(
+train_dataset = MELD_Dataset(
     csv_path=C.train_csv_path,
     video_dir=C.train_video_dir,
     image_size=C.image_size,
@@ -29,9 +29,9 @@ train_loader = DataLoader(
     train_dataset,
     batch_size=C.batch_size,
     shuffle=True,
-    num_workers=C.num_workers
+    # num_workers=C.num_workers
 )
-dev_dataset = MultiModalDataset(
+dev_dataset = MELD_Dataset(
     csv_path=C.dev_csv_path,
     video_dir=C.dev_video_dir,
     image_size=C.image_size,
@@ -46,7 +46,7 @@ dev_loader = DataLoader(
     dev_dataset,
     batch_size=C.batch_size,
     shuffle=False,
-    num_workers=C.num_workers
+    # num_workers=C.num_workers
 )
 
 # Initialize Model
@@ -88,8 +88,8 @@ for epoch in range(C.epochs):
     # Initialize the progress bar
     pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{C.epochs}")
 
-    for batch in pbar:
-        original_frames, video_frames, audio_frames, labels = batch
+    for batch_idx, batch in enumerate(pbar):
+        (original_frames, video_frames, audio_frames), labels = batch
         original_frames = original_frames.to(C.device)
         video_frames = video_frames.to(C.device)
         audio_frames = audio_frames.to(C.device)
@@ -107,6 +107,7 @@ for epoch in range(C.epochs):
         total += labels.size(0)
 
         pbar.set_postfix({"loss": loss.item(), "acc": correct / total})
+        print(f"Epoch {epoch+1}/{C.epochs}, Batch {batch_idx+1}/{len(train_loader)}, Loss: {loss.item():.4f}, Acc: {correct / total:.4f}")
 
     train_loss = total_loss / total
     train_acc = correct / total
@@ -120,6 +121,7 @@ for epoch in range(C.epochs):
         f.write(f"[Epoch {epoch+1}] Train Loss: {train_loss:.4f}, Train Acc: {train_acc*100:.2f}%, Val Acc: {val_acc*100:.2f}%\n")
     # Save the best model
     if val_acc > best_val_acc:
+        os.makedirs(C.model_save_path, exist_ok=True)
         best_val_acc = val_acc
         best_model = {
             'model_state_dict': model.state_dict(),
@@ -145,7 +147,9 @@ for epoch in range(C.epochs):
             'val_acc': val_acc
         }
         torch.save(checkpoint, os.path.join(C.model_save_path, f"checkpoint_epoch_{epoch+1}.pth"))
-        
+
+
+
 
 
 

@@ -9,7 +9,7 @@ def evaluate(model, dataloader, criterion, device):
 
     with torch.no_grad():
         for batch in dataloader:
-            original_frames, video_frames, audio_frames, labels = batch
+            (original_frames, video_frames, audio_frames), labels = batch
             original_frames = original_frames.to(device)
             video_frames = video_frames.to(device)
             audio_frames = audio_frames.to(device)

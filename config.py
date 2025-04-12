@@ -5,7 +5,7 @@ class Config:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         # Training
-        self.batch_size = 8
+        self.batch_size = 16
         self.epochs = 20
         self.lr = 1e-4
         self.weight_decay = 1e-2
@@ -34,8 +34,6 @@ class Config:
 
         # Logging
         self.log_dir = "logs/"
-        os.makedirs(self.log_dir, exist_ok=True)
         self.model_save_path = "models/"
-        os.makedirs(self.model_save_path, exist_ok=True)
         self.best_model_path = os.path.join(self.model_save_path, "best_model.pth")
 

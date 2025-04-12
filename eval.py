@@ -1,12 +1,12 @@
 from config import Config
-from data import MultiModalDataset
+from data import MELD_Dataset
 from torch.utils.data import DataLoader
 from models.multi_modal_model import MultiModalModel
 from utils import evaluate
 
 
 C=Config()
-test_dataset = MultiModalDataset(
+test_dataset = MELD_Dataset(
     csv_path=C.test_csv_path,
     video_dir=C.test_video_dir,
     image_size=C.image_size,
