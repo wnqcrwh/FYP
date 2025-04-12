@@ -3,31 +3,31 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class AudioCNN(nn.Module):
-    def __init__(self, dropout_rate=0.3):
+    def __init__(self, dropout=0.3):
         super(AudioCNN, self).__init__()
         self.conv_block= nn.Sequential(
             nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(16),
             nn.ReLU(),
-            nn.Dropout(dropout_rate),
+            nn.Dropout(dropout),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
             nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.Dropout(dropout_rate),
+            nn.Dropout(dropout),
             nn.MaxPool2d(kernel_size=4, stride=4),
 
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Dropout(dropout_rate),
+            nn.Dropout(dropout),
             nn.MaxPool2d(kernel_size=4, stride=4),
 
             nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.Dropout(dropout_rate),
+            nn.Dropout(dropout),
             nn.MaxPool2d(kernel_size=4, stride=4),
         )
 

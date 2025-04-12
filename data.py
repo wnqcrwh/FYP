@@ -13,7 +13,7 @@ import librosa
 
 class MELD_Dataset(Dataset):
     def __init__(self, csv_path, video_dir, image_size=(112, 112), num_frames=16, sr=16000,
-                 image_augment=False, audio_augment=False, feature_type='log_mel', mode='train'):
+                 image_augment=True, audio_augment=True, feature_type='log_mel', mode='train'):
         self.df = pd.read_csv(csv_path)
         self.video_dir = video_dir
         self.image_size = image_size
@@ -68,11 +68,16 @@ class MELD_Dataset(Dataset):
             frame = self.image_transform(frame)
             frame_list.append(frame)
         
-        return origin_frame_list, torch.stack(frame_list)
+        return torch.stack(origin_frame_list), torch.stack(frame_list)
     
     # Extract audio from video file
-    # This function extracts audio from the video and computes MFCC features.
-    # It returns a tensor of shape (num_mfcc, time_steps) where num_mfcc is the number of MFCC features and time_steps is the number of time steps.
+    # This function uses ffmpeg to extract audio from the video file and convert it to a specified format.
+    # It returns a tensor of the audio waveform or a feature representation (MFCC or log-mel spectrogram).
+    # The audio is augmented if specified and the mode is 'train'.
+    # The audio is also padded or truncated to a specified length.
+    # The audio is returned as a tensor of shape (num_chunks, 128) for log-mel spectrogram.
+    # The audio is returned as a tensor of shape (sr*2) for waveform.
+    # The audio is returned as a tensor of shape (num_chunks, 20) for MFCC.
     def extract_audio(self, video_path):
 
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmpfile:
@@ -142,7 +147,6 @@ class MELD_Dataset(Dataset):
         
         # Get labels
         emotion_label = torch.tensor(row["Emotion"]).long()
-        sentiment_label = torch.tensor(row["Sentiment"]).long()
 
         return (origin_frames, frames, audio), (emotion_label, sentiment_label)
 
