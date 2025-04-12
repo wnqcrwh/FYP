@@ -54,9 +54,9 @@ class MultiModalModel(nn.Module):
 
     def forward(self,original_frames, video, audio):
         face_frames = self.extract_face_frames(original_frames)
-        face_features = self.face_model(face_frames, dropout=self.dropout)
-        video_features = self.video_model(video, dropout=self.dropout)
-        audio_features = self.audio_model(audio, dropout=self.dropout)
+        face_features = self.face_model(face_frames.to(device=self.device))
+        video_features = self.video_model(video.to(device=self.device))
+        audio_features = self.audio_model(audio.to(device=self.device), dropout=self.dropout)
 
         face_features, _ = self.face_lstm(face_features) 
         video_features, _ = self.video_lstm(video_features)

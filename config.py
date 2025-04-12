@@ -8,6 +8,7 @@ class Config:
         self.batch_size = 8
         self.epochs = 20
         self.lr = 1e-4
+        self.weight_decay = 1e-2
         self.num_workers = 4
         
         # Model
@@ -17,8 +18,12 @@ class Config:
         self.dropout = 0.3
 
         # Data
-        self.csv_path = "MELD/train.csv"
-        self.video_dir = "MELD/train"
+        self.train_csv_path = "MELD/train.csv"
+        self.train_video_dir = "MELD/train"
+        self.dev_csv_path = "MELD/dev.csv"
+        self.dev_video_dir = "MELD/dev"
+        self.test_csv_path = "MELD/test.csv"
+        self.test_video_dir = "MELD/test"
         self.image_size = (112, 112)
         self.num_frames = 16
         self.sr = 16000
@@ -27,6 +32,10 @@ class Config:
         self.feature_type = 'log_mel'
         self.mode = 'train'
 
-        
+        # Logging
         self.log_dir = "logs/"
-        self.checkpoint_path = os.path.join(self.model_save_path, "checkpoint.pth")
+        os.makedirs(self.log_dir, exist_ok=True)
+        self.model_save_path = "models/"
+        os.makedirs(self.model_save_path, exist_ok=True)
+        self.best_model_path = os.path.join(self.model_save_path, "best_model.pth")
+
