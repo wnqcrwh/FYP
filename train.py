@@ -56,7 +56,12 @@ model = MultiModalModel(
     lstm_layers=C.lstm_layers,
     dropout=C.dropout,
     device=C.device
-).to(C.device)
+)
+if torch.cuda.device_count() > 1:
+    model=nn.DataParallel(model)
+model.to(C.device)
+model.module.yolo.freeze()
+
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.AdamW(
     model.parameters(),
@@ -78,9 +83,14 @@ assert sum(p.numel() for p in model.parameters()) == \
     sum(p.numel() for g in optimizer.param_groups for p in g['params']), \
     "Optimizer does not cover all model parameters!"
 
+os.makedirs(C.log_dir, exist_ok=True)
+os.makedirs(C.model_save_path, exist_ok=True)
 best_val_acc = 0.0
 for epoch in range(C.epochs):
     model.train()
+    if epoch == 3:
+        model.module.yolo.unfreeze()
+        print("[INFO] YOLO unfrozen for fine-tuning.")
     total_loss = 0.0
     correct = 0
     total = 0
@@ -108,6 +118,12 @@ for epoch in range(C.epochs):
 
         pbar.set_postfix({"loss": loss.item(), "acc": correct / total})
         print(f"Epoch {epoch+1}/{C.epochs}, Batch {batch_idx+1}/{len(train_loader)}, Loss: {loss.item():.4f}, Acc: {correct / total:.4f}")
+        if (batch_idx+1) % 100 == 0:
+            latest_ckpt = {
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+            }
+            torch.save(latest_ckpt, os.path.join(C.model_save_path, f"latest_checkpoint_epoch_{epoch+1}_batch_{batch_idx+1}.pth"))
 
     train_loss = total_loss / total
     train_acc = correct / total
@@ -116,12 +132,10 @@ for epoch in range(C.epochs):
     # Log the results
     print(f"[Epoch {epoch+1}] Train Loss: {train_loss:.4f}, Train Acc: {train_acc*100:.2f}%, Val Loss: {val_loss:.4f}, Val Acc: {val_acc*100:.2f}%")
     log_path = os.path.join(C.log_dir, "train.log")
-    os.makedirs(C.log_dir, exist_ok=True)
     with open(log_path, "a") as f:
         f.write(f"[Epoch {epoch+1}] Train Loss: {train_loss:.4f}, Train Acc: {train_acc*100:.2f}%, Val Acc: {val_acc*100:.2f}%\n")
     # Save the best model
     if val_acc > best_val_acc:
-        os.makedirs(C.model_save_path, exist_ok=True)
         best_val_acc = val_acc
         best_model = {
             'model_state_dict': model.state_dict(),
@@ -135,7 +149,6 @@ for epoch in range(C.epochs):
         torch.save(best_model, C.best_model_path)
     # Save checkpoints every 5 epochs
     if (epoch + 1) % 5 == 0:
-        os.makedirs(C.model_save_path, exist_ok=True)
         checkpoint = {
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
