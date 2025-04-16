@@ -132,6 +132,7 @@ class LandmarkHead(nn.Module):
 
         return out.view(out.shape[0], -1, 10)
 
+
 class RetinaFace(nn.Module):
     def __init__(self, backbone='resnet34'):
         """
@@ -139,26 +140,33 @@ class RetinaFace(nn.Module):
         :param phase: train or test.
         """
         super(RetinaFace,self).__init__()
-        if backbone =='resnet34':
-            self.backbone = models.resnet34(pretrained=True)
-        return_layers= {'layer2': 1, 'layer3': 2, 'layer4': 3}
+        if backbone =='resnet18':
+            self.backbone = models.resnet18(pretrained=True)
+            return_layers = {'layer2': 1, 'layer3': 2, 'layer4': 3}
+            in_channels_stage2 = 128
+            in_channels_list = [
+                in_channels_stage2,
+                in_channels_stage2 * 2,
+                in_channels_stage2 * 4,
+            ]
+        
+        elif backbone == 'mobilenet0.25':
+            mobilenet = models.mobilenet_v2(pretrained=True)
+            self.backbone = mobilenet.features
+            return_layers = {'6': 1, '13': 2, '17': 3}
+            in_channels_list = [32, 96, 320]
 
         self.body = _utils.IntermediateLayerGetter(self.backbone, return_layers)
-        in_channels_stage2 = 128
-        in_channels_list = [
-            in_channels_stage2,
-            in_channels_stage2 * 2,
-            in_channels_stage2 * 4,
-        ]
-        out_channels = 256
+
+        out_channels = 64
         self.fpn = FPN(in_channels_list,out_channels)
         self.ssh1 = SSH(out_channels, out_channels)
         self.ssh2 = SSH(out_channels, out_channels)
         self.ssh3 = SSH(out_channels, out_channels)
 
-        self.ClassHead = self._make_class_head(fpn_num=3, inchannels=out_channels)
-        self.BboxHead = self._make_bbox_head(fpn_num=3, inchannels=out_channels)
-        self.LandmarkHead = self._make_landmark_head(fpn_num=3, inchannels=out_channels)
+        self.ClassHead = self._make_class_head(fpn_num=3, inchannels=out_channels, anchor_num=1)
+        self.BboxHead = self._make_bbox_head(fpn_num=3, inchannels=out_channels, anchor_num=1)
+        self.LandmarkHead = self._make_landmark_head(fpn_num=3, inchannels=out_channels, anchor_num=1)
 
     def _make_class_head(self,fpn_num=3,inchannels=64,anchor_num=2):
         classhead = nn.ModuleList()

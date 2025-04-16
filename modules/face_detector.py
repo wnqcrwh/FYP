@@ -10,7 +10,7 @@ from modules.retinaface import RetinaFace
 class PriorBox:
     def __init__(self, image_size=None):
         super(PriorBox, self).__init__()
-        self.min_sizes = [[16, 32], [64, 128], [256, 512]]
+        self.min_sizes = [[16], [64], [256]]
         self.steps = [8, 16, 32]
         self.clip = False
         self.image_size = image_size
@@ -47,11 +47,11 @@ def decode(loc, priors, variances):
     return boxes
 
 class FaceDetector(nn.Module):
-    def __init__(self, device='cuda', backbone='resnet34'):
+    def __init__(self, device='cuda', backbone='mobilenet0.25'):
         super(FaceDetector, self).__init__()
         self.device = device if torch.cuda.is_available() else 'cpu'
         self.model = RetinaFace(backbone=backbone).to(self.device)
-        priorbox = PriorBox(image_size=(640, 640))
+        priorbox = PriorBox(image_size=(224, 224))
         self.priors = priorbox.forward().to(self.device)
 
         self.image_size = (112, 112)
@@ -107,7 +107,7 @@ class FaceDetector(nn.Module):
             if inds.numel() == 0:
                 detections.append([])
                 continue
-
+           
             boxes = decode(loc[inds], priors[inds], variances)
             scores = scores[inds]
 

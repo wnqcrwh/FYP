@@ -63,7 +63,7 @@ class MELD_Dataset(Dataset):
             t = i * (duration / self.num_frames)
             frame = clip.get_frame(t)
             original = frame.copy()
-            original = cv2.resize(original, (640, 640))         
+            original = cv2.resize(original, (224,224))         
             origin_frame_list.append(torch.from_numpy(original).permute(2, 0, 1))
             frame = cv2.resize(frame, self.image_size)
             frame = self.image_transform(frame)
