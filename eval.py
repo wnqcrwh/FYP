@@ -1,7 +1,7 @@
 from config import Config
 from data import MELD_Dataset
 from torch.utils.data import DataLoader
-from models.multi_modal_model import MultiModalModel
+from modules.multi_modal_model import MultiModalModel
 from utils import evaluate
 
 

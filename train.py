@@ -6,7 +6,7 @@ from tqdm import tqdm
 from config import Config
 from data import MELD_Dataset
 from torch.utils.data import DataLoader
-from models.multi_modal_model import MultiModalModel
+from modules.multi_modal_model import MultiModalModel
 from utils import evaluate
 
 
@@ -59,8 +59,11 @@ model = MultiModalModel(
 )
 if torch.cuda.device_count() > 1:
     model=nn.DataParallel(model)
+    model.module.face_extractor.freeze()
+else:
+    model.face_extractor.freeze()
 model.to(C.device)
-model.module.yolo.freeze()
+
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.AdamW(
@@ -76,6 +79,28 @@ optimizer = optim.AdamW(
 # Optionally load a best model
 # model.load_state_dict(torch.load(C.best_model_path))
 
+def load_checkpoint(model, optimizer, checkpoint_path, device):
+    print(f"[INFO] Loading checkpoint from {checkpoint_path}...")
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    if torch.cuda.device_count() > 1:
+        model.module.load_state_dict(checkpoint['model_state_dict'])
+    else:
+        model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    loaded_epoch = checkpoint.get('epoch', 0)
+    loaded_batch_idx = checkpoint.get('batch_idx', 0)
+    total_loss = checkpoint.get('total_loss', 0)
+    correct = checkpoint.get('correct', 0)
+    total = checkpoint.get('total', 0)
+    best_val_acc = checkpoint.get('best_val_acc', 0)
+    log = checkpoint.get('log', None)
+
+    print(f"[INFO] Loaded checkpoint: Epoch {loaded_epoch+1}, Batch {loaded_batch_idx+1}, Train Loss: {total_loss/total:.4f}, Train Acc: {correct/total:.4f}")
+    if log:
+        print(f"[INFO] Log: {log}")
+
+    return model, optimizer, loaded_epoch, loaded_batch_idx, total_loss, correct, total, best_val_acc
+
 
 # Train the model
 # Ensure that the optimizer covers all model parameters
@@ -85,20 +110,44 @@ assert sum(p.numel() for p in model.parameters()) == \
 
 os.makedirs(C.log_dir, exist_ok=True)
 os.makedirs(C.model_save_path, exist_ok=True)
-best_val_acc = 0.0
-for epoch in range(C.epochs):
+
+checkpoint_path = os.path.join(C.model_save_path, "latest_checkpoint.pth")
+if os.path.exists(checkpoint_path):
+    # 加载检查点
+    model, optimizer, loaded_epoch, loaded_batch_idx, total_loss, correct, total, best_val_acc  = load_checkpoint(model, optimizer, checkpoint_path, C.device)
+
+    print(f"[INFO] Reloaded model from Epoch {loaded_epoch+1}, Batch {loaded_batch_idx+1}")
+else:
+    loaded_epoch, loaded_batch_idx, total_loss, correct, total, best_val_acc = 0, 0, 0.0, 0, 0, 0.0
+    print("[INFO] No checkpoint found. Starting training from scratch.")
+
+
+for epoch in range(loaded_epoch, C.epochs):
     model.train()
+
     if epoch == 3:
-        model.module.yolo.unfreeze()
+        if torch.cuda.device_count() > 1:
+            model.module.face_extractor.unfreeze()
+        else:
+            model.face_extractor.unfreeze()
         print("[INFO] YOLO unfrozen for fine-tuning.")
-    total_loss = 0.0
-    correct = 0
-    total = 0
+    
+    if epoch == loaded_epoch:
+        print(f"[INFO] Resuming training from Epoch {epoch+1}, Batch {loaded_batch_idx+1}")
+        print(f"total_loss: {total_loss:.4f}, correct: {correct}, total: {total}")
+    else:
+        print(f"[INFO] Starting Epoch {epoch+1}")
+        total_loss = 0.0
+        correct = 0
+        total = 0
 
     # Initialize the progress bar
     pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{C.epochs}")
 
     for batch_idx, batch in enumerate(pbar):
+        if epoch==loaded_epoch and batch_idx <= loaded_batch_idx:
+            continue
+
         (original_frames, video_frames, audio_frames), labels = batch
         original_frames = original_frames.to(C.device)
         video_frames = video_frames.to(C.device)
@@ -120,10 +169,17 @@ for epoch in range(C.epochs):
         print(f"Epoch {epoch+1}/{C.epochs}, Batch {batch_idx+1}/{len(train_loader)}, Loss: {loss.item():.4f}, Acc: {correct / total:.4f}")
         if (batch_idx+1) % 100 == 0:
             latest_ckpt = {
-                'model_state_dict': model.state_dict(),
+                'model_state_dict': model.module.state_dict() if torch.cuda.device_count() > 1 else model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
+                'epoch': epoch,
+                'batch_idx': batch_idx,
+                'total_loss': total_loss,
+                'correct': correct,
+                'total': total,
+                'best_val_acc': best_val_acc,
+                'log': f"Epoch {epoch+1}/{C.epochs}, Batch {batch_idx+1}/{len(train_loader)}, Loss: {total_loss/total:.4f}, Acc: {correct / total:.4f}"
             }
-            torch.save(latest_ckpt, os.path.join(C.model_save_path, f"latest_checkpoint_epoch_{epoch+1}_batch_{batch_idx+1}.pth"))
+            torch.save(latest_ckpt, os.path.join(C.model_save_path, f"latest_checkpoint.pth"))
 
     train_loss = total_loss / total
     train_acc = correct / total
@@ -138,7 +194,7 @@ for epoch in range(C.epochs):
     if val_acc > best_val_acc:
         best_val_acc = val_acc
         best_model = {
-            'model_state_dict': model.state_dict(),
+            'model_state_dict': model.module.state_dict() if torch.cuda.device_count() > 1 else model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'epoch': epoch,
             'train_loss': train_loss,
@@ -150,7 +206,7 @@ for epoch in range(C.epochs):
     # Save checkpoints every 5 epochs
     if (epoch + 1) % 5 == 0:
         checkpoint = {
-            'model_state_dict': model.state_dict(),
+            'model_state_dict': model.module.state_dict() if torch.cuda.device_count() > 1 else model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'epoch': epoch,
             'best_val_acc': best_val_acc,
@@ -160,11 +216,5 @@ for epoch in range(C.epochs):
             'val_acc': val_acc
         }
         torch.save(checkpoint, os.path.join(C.model_save_path, f"checkpoint_epoch_{epoch+1}.pth"))
-
-
-
-
-
-
 
 

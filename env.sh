@@ -9,7 +9,8 @@ source /userhome/2072/fyp24093/anaconda3/bin/activate ./condaenv
 #pip install natsort
 #pip install opencv-python
 #pip install librosa
-# conda install -c conda-forge ffmpeg
+#conda install -c conda-forge ffmpeg
 
 
-python clean_csv.py
+
+python train.py 

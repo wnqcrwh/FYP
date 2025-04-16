@@ -2,6 +2,11 @@ import torch
 
 #Evaluate Function
 def evaluate(model, dataloader, criterion, device):
+    if isinstance(model, torch.nn.DataParallel):
+        model = model.module
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+
     model.eval()
     total_loss = 0.0
     correct = 0

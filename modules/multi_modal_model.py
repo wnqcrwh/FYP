@@ -1,6 +1,6 @@
-from models import mobilefacenet
-from models import audio_model
-from models.yolo import YOLOFaceDetector
+from modules import mobilefacenet
+from modules import audio_model
+from modules.face_detector import FaceDetector
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
@@ -14,7 +14,7 @@ class MultiModalModel(nn.Module):
         self.image_size = image_size       
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') if not device else device
         
-        self.face_extractor = YOLOFaceDetector(device=self.device)
+        self.face_extractor = FaceDetector(device=self.device)
         
         self.face_model = mobilefacenet.MobileFaceNet() #(B, T, 128)
         self.video_model = mobilefacenet.MobileFaceNet() #(B, T, 128)
