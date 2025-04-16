@@ -3,6 +3,7 @@ import torch
 import torchvision.transforms.v2 as transforms
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision
 from torchvision.ops import nms
 from modules.retinaface import RetinaFace
 
@@ -77,6 +78,11 @@ class FaceDetector(nn.Module):
         for param in self.model.parameters():
             param.requires_grad = True
 
+    def adjust_threshold(self, epoch, max_epoch):
+        self.conf_thresh = 0.05 + 0.4 * (epoch / max_epoch)
+        self.nms_thresh = 0.6 - 0.2 * (epoch / max_epoch)
+
+
     def detect(self, images, conf_thresh=0.5, nms_thresh=0.4):
         """
         Args:
@@ -87,6 +93,7 @@ class FaceDetector(nn.Module):
         images = images.float() / 255.0
         B = images.size(0)
         detections = []
+        priors = self.priors.to(images.device)
 
         locs, confs, _ = self.model(images)
 
@@ -101,7 +108,7 @@ class FaceDetector(nn.Module):
                 detections.append([])
                 continue
 
-            boxes = decode(loc[inds], self.priors[inds], variances)
+            boxes = decode(loc[inds], priors[inds], variances)
             scores = scores[inds]
 
             keep = nms(boxes, scores, nms_thresh)
@@ -120,7 +127,7 @@ class FaceDetector(nn.Module):
         
         face_frames = []
         augment = self.train_augment if self.training else self.eval_augment         
-        detections_list = self.detect(original_frames)
+        detections_list = self.detect(original_frames, conf_thresh=self.conf_thresh, nms_thresh=self.nms_thresh)
         for i in range(B*T):
             image = original_frames[i]
             detections = detections_list[i]
@@ -133,13 +140,11 @@ class FaceDetector(nn.Module):
                 y2 = max(0, min(y2, image.shape[1] - 1))
                 if x2 > x1 and y2 > y1:
                     face = image[:, y1:y2, x1:x2]
+                    face = face.float() / 255.0
                     face = F.interpolate(face.unsqueeze(0), size=self.image_size, mode='bilinear', align_corners=False).squeeze(0)
-                    print(f"Best detection box: {x1, y1, x2, y2}, Confidence: {best[4]}")
                 else:
-                    print(f"Warning: Invalid detection box after clipping: {x1, y1, x2, y2}")
                     face = torch.zeros((3, *self.image_size), device=device, dtype=torch.float32)
             else:
-                print("Warning: No detections found for this frame.")
                 face = torch.zeros((3, *self.image_size), device=device, dtype=torch.float32)
             face_frames.append(face)
 

@@ -140,7 +140,7 @@ class RetinaFace(nn.Module):
         """
         super(RetinaFace,self).__init__()
         if backbone =='resnet34':
-            self.backbone = models.resnet34(pretrained=False)
+            self.backbone = models.resnet34(pretrained=True)
         return_layers= {'layer2': 1, 'layer3': 2, 'layer4': 3}
 
         self.body = _utils.IntermediateLayerGetter(self.backbone, return_layers)
