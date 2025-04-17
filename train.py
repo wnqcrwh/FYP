@@ -4,7 +4,8 @@ import torch.optim as optim
 import os
 from tqdm import tqdm
 from config import Config
-from data import MELD_Dataset
+from data.meld_data import MELD_Dataset
+from data.utils import collate_fn
 from torch.utils.data import DataLoader
 from modules.multi_modal_model import MultiModalModel
 from utils import evaluate
@@ -18,35 +19,37 @@ train_dataset = MELD_Dataset(
     csv_path=C.train_csv_path,
     video_dir=C.train_video_dir,
     image_size=C.image_size,
-    num_frames=C.num_frames,
+    frame_rate=C.frame_rate,
     sr=C.sr,
     image_augment=C.image_augment,
     audio_augment=C.audio_augment,
     feature_type=C.feature_type,
-    mode='train'
+    mode='train',
 )
 train_loader = DataLoader(
     train_dataset,
     batch_size=C.batch_size,
     shuffle=True,
-    # num_workers=C.num_workers
+    num_workers=C.num_workers,
+    collate_fn=collate_fn
 )
 dev_dataset = MELD_Dataset(
     csv_path=C.dev_csv_path,
     video_dir=C.dev_video_dir,
     image_size=C.image_size,
-    num_frames=C.num_frames,
+    frame_rate=C.frame_rate,
     sr=C.sr,
     image_augment=C.image_augment,
     audio_augment=C.audio_augment,
     feature_type=C.feature_type,
-    mode='dev'
+    mode='dev',
 )
 dev_loader = DataLoader(
     dev_dataset,
     batch_size=C.batch_size,
     shuffle=False,
-    # num_workers=C.num_workers
+    num_workers=C.num_workers,
+    collate_fn=collate_fn
 )
 
 # Initialize Model
@@ -65,7 +68,7 @@ else:
 model.to(C.device)
 
 
-criterion = nn.CrossEntropyLoss()
+criterion = nn.CrossEntropyLoss(weight=C.class_weights.to(C.device))
 optimizer = optim.AdamW(
     model.parameters(),
     lr=C.lr,
@@ -89,13 +92,15 @@ def load_checkpoint(model, optimizer, checkpoint_path, device):
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     loaded_epoch = checkpoint.get('epoch', 0)
     loaded_batch_idx = checkpoint.get('batch_idx', 0)
-    total_loss = checkpoint.get('total_loss', 0)
+    total_loss = checkpoint.get('total_loss', 0.0)
     correct = checkpoint.get('correct', 0)
     total = checkpoint.get('total', 0)
-    best_val_acc = checkpoint.get('best_val_acc', 0)
+    best_val_acc = checkpoint.get('best_val_acc', 0.0)
     log = checkpoint.get('log', None)
 
-    print(f"[INFO] Loaded checkpoint: Epoch {loaded_epoch+1}, Batch {loaded_batch_idx+1}, Train Loss: {total_loss/total:.4f}, Train Acc: {correct/total:.4f}")
+    train_loss = total_loss/total if total != 0 else 0.0
+    train_acc = correct/total if total != 0 else 0.0
+    print(f"[INFO] Loaded checkpoint: Epoch {loaded_epoch+1}, Batch {loaded_batch_idx+1}, Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}, Best Val Acc: {best_val_acc:.4f}")
     if log:
         print(f"[INFO] Log: {log}")
 
@@ -111,7 +116,7 @@ assert sum(p.numel() for p in model.parameters()) == \
 os.makedirs(C.log_dir, exist_ok=True)
 os.makedirs(C.model_save_path, exist_ok=True)
 
-checkpoint_path = os.path.join(C.model_save_path, "latest_checkpoint.pth")
+checkpoint_path = os.path.join(C.model_save_path, "latest_checkpoint_1.pth")
 if os.path.exists(checkpoint_path):
     # 加载检查点
     model, optimizer, loaded_epoch, loaded_batch_idx, total_loss, correct, total, best_val_acc  = load_checkpoint(model, optimizer, checkpoint_path, C.device)
@@ -128,12 +133,12 @@ for epoch in range(loaded_epoch, C.epochs):
         model.module.face_extractor.adjust_threshold(epoch, C.epochs)
     else:
         model.face_extractor.adjust_threshold(epoch, C.epochs)
-    if epoch == 3:
+    if epoch > 3:
         if torch.cuda.device_count() > 1:
             model.module.face_extractor.unfreeze()
         else:
             model.face_extractor.unfreeze()
-        print("[INFO] YOLO unfrozen for fine-tuning.")
+        print("[INFO] face_detector unfrozen for fine-tuning.")
     
     if epoch == loaded_epoch:
         print(f"[INFO] Resuming training from Epoch {epoch+1}, Batch {loaded_batch_idx+1}")
@@ -182,7 +187,7 @@ for epoch in range(loaded_epoch, C.epochs):
                 'best_val_acc': best_val_acc,
                 'log': f"Epoch {epoch+1}/{C.epochs}, Batch {batch_idx+1}/{len(train_loader)}, Loss: {total_loss/total:.4f}, Acc: {correct / total:.4f}"
             }
-            torch.save(latest_ckpt, os.path.join(C.model_save_path, f"latest_checkpoint.pth"))
+            torch.save(latest_ckpt, os.path.join(C.model_save_path, f"latest_checkpoint_1.pth"))
 
     train_loss = total_loss / total
     train_acc = correct / total
@@ -199,25 +204,27 @@ for epoch in range(loaded_epoch, C.epochs):
         best_model = {
             'model_state_dict': model.module.state_dict() if torch.cuda.device_count() > 1 else model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
-            'epoch': epoch,
-            'train_loss': train_loss,
-            'train_acc': train_acc,
-            'val_loss': val_loss,
-            'val_acc': val_acc
-        }
-        torch.save(best_model, C.best_model_path)
-    # Save checkpoints every 5 epochs
-    if (epoch + 1) % 5 == 0:
-        checkpoint = {
-            'model_state_dict': model.module.state_dict() if torch.cuda.device_count() > 1 else model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'epoch': epoch,
+            'epoch': epoch+1,
             'best_val_acc': best_val_acc,
             'train_loss': train_loss,
             'train_acc': train_acc,
             'val_loss': val_loss,
-            'val_acc': val_acc
+            'val_acc': val_acc,
+            'log': f"Best Model: Epoch {epoch+1}, Val Acc: {val_acc*100:.2f}%"
         }
-        torch.save(checkpoint, os.path.join(C.model_save_path, f"checkpoint_epoch_{epoch+1}.pth"))
+        torch.save(best_model, C.best_model_path)
+    # Save checkpoints for every epoch
+    checkpoint = {
+        'model_state_dict': model.module.state_dict() if torch.cuda.device_count() > 1 else model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'epoch': epoch+1,
+        'best_val_acc': best_val_acc,
+        'train_loss': train_loss,
+        'train_acc': train_acc,
+        'val_loss': val_loss,
+        'val_acc': val_acc,
+        'log': f"Checkpoint: Epoch {epoch+1}, Train Loss: {train_loss:.4f}, Train Acc: {train_acc*100:.2f}%, Val Acc: {val_acc*100:.2f}%"
+    }
+    torch.save(checkpoint, os.path.join(C.model_save_path, f"checkpoint_epoch_{epoch+1}.pth"))
 
 

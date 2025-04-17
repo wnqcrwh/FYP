@@ -92,7 +92,7 @@ class InvertedResidual(nn.Module):
 # It uses the ConvBNPReLU, DepthwiseSeparableConv, GDConv and InvertedResidual classes to build the model
 # It also uses the _make_divisible function to ensure that the number of channelsin each layer is divisible by 8
 class MobileFaceNet(nn.Module):
-    def __init__(self, width_mult=1.0, inverted_residual_setting=None, round_nearest=8):
+    def __init__(self, width_mult=1.0, inverted_residual_setting=None, round_nearest=8, input_size=128):
         """
         MobileNet V2 main class
         Args:
@@ -139,7 +139,8 @@ class MobileFaceNet(nn.Module):
         self.features = nn.Sequential(*features)
          # building last several layers
         self.conv2 = ConvBNPReLU(input_channel, self.last_channel, kernel_size=1)
-        self.gdconv = GDConv(in_planes=512, out_planes=512, kernel_size=7, padding=0)
+        kernel_size = input_size // 16
+        self.gdconv = GDConv(in_planes=512, out_planes=512, kernel_size=kernel_size, padding=0)
         self.conv3 = nn.Conv2d(512, 128, kernel_size=1)
         self.bn = nn.BatchNorm2d(128)
 

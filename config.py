@@ -5,12 +5,18 @@ class Config:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         # Training
-        self.batch_size = 16
+        self.batch_size = 32
         self.epochs = 20
-        self.lr = 1e-4
-        self.weight_decay = 1e-2
+        self.lr = 3e-4
+        self.weight_decay = 1e-4
         self.num_workers = 8
         
+        #calculate class weights
+        train_counts = torch.tensor([1109, 271, 268, 1743, 4710, 683, 1205], dtype=torch.float32)
+        total = torch.sum(train_counts)
+        class_weights = total / (train_counts * len(train_counts))
+        self.class_weights = class_weights
+
         # Model
         self.num_classes = 7
         self.image_size = (112, 112)
@@ -24,8 +30,8 @@ class Config:
         self.dev_video_dir = "MELD/dev"
         self.test_csv_path = "MELD/test_cleaned.csv"
         self.test_video_dir = "MELD/test"
-        self.image_size = (112, 112)
-        self.num_frames = 16
+        self.image_size = (128, 128)
+        self.frame_rate = 15
         self.sr = 16000
         self.image_augment = True
         self.audio_augment = True

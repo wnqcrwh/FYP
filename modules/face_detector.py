@@ -54,7 +54,9 @@ class FaceDetector(nn.Module):
         priorbox = PriorBox(image_size=(224, 224))
         self.priors = priorbox.forward().to(self.device)
 
-        self.image_size = (112, 112)
+        self.image_size = (128, 128)
+        self.conf_thresh = 0.05
+        self.nms_thresh = 0.4
         self.train_augment = transforms.Compose([
             transforms.RandomHorizontalFlip(),
             transforms.RandomRotation(10),
@@ -68,11 +70,8 @@ class FaceDetector(nn.Module):
         ])
 
     def freeze(self):
-        for name, param in self.model.named_parameters():
-            if name.startswith(('fpn', 'ssh', 'ClassHead', 'BboxHead', 'LandmarkHead')):
-                param.requires_grad = False
-            else:
-                param.requires_grad = True
+        for param in self.model.backbone.parameters():
+            param.requires_grad = False
 
     def unfreeze(self):
         for param in self.model.parameters():

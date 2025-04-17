@@ -16,8 +16,8 @@ class MultiModalModel(nn.Module):
         
         self.face_extractor = FaceDetector(device=self.device)
         
-        self.face_model = mobilefacenet.MobileFaceNet() #(B, T, 128)
-        self.video_model = mobilefacenet.MobileFaceNet() #(B, T, 128)
+        self.face_model = mobilefacenet.MobileFaceNet(input_size=128) #(B, T, 128)
+        self.video_model = mobilefacenet.MobileFaceNet(input_size=128) #(B, T, 128)
         self.audio_model = audio_model.AudioCNN(dropout=self.dropout) #(B, T, 128)
 
         self.face_lstm = nn.LSTM(input_size = 128, hidden_size = 128, num_layers = self.lstm_layers, batch_first=True, bidirectional=False, dropout=self.dropout)

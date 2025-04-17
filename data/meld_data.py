@@ -12,12 +12,12 @@ import random
 import librosa
 
 class MELD_Dataset(Dataset):
-    def __init__(self, csv_path, video_dir, image_size=(112, 112), num_frames=16, sr=16000,
+    def __init__(self, csv_path, video_dir, image_size=(128, 128), frame_rate=15, sr=16000,
                  image_augment=True, audio_augment=True, feature_type='log_mel', mode='train'):
         self.df = pd.read_csv(csv_path)
         self.video_dir = video_dir
         self.image_size = image_size
-        self.num_frames = num_frames
+        self.frame_rate = frame_rate
         self.sr = sr
         self.image_augment = image_augment
         self.audio_augment = audio_augment
@@ -59,8 +59,10 @@ class MELD_Dataset(Dataset):
             print(f"Warning: Video {video_path} has zero duration.")
             return []
         
-        for i in range(self.num_frames):
-            t = i * (duration / self.num_frames)
+        num_frames = int(duration * self.frame_rate)
+        timestamps = [i / self.frame_rate for i in range(num_frames)]
+
+        for t in timestamps:
             frame = clip.get_frame(t)
             original = frame.copy()
             original = cv2.resize(original, (224,224))         
@@ -100,30 +102,31 @@ class MELD_Dataset(Dataset):
             if self.audio_augment and self.mode == 'train':
                 audio = self.augment_waveform(audio)      
             if self.feature_type == 'waveform':
-                return torch.tensor(audio[:self.sr*2]).float()
+                return torch.tensor(audio).float()
             elif self.feature_type == 'mfcc':
                 feature = librosa.feature.mfcc(y=audio, sr=self.sr, n_mfcc=20)
-                feature = self.pad_or_truncate(feature, 128)
                 return torch.tensor(feature).float()
             elif self.feature_type == 'log_mel':
-                hop_length = 80
-                num_chunks = 6
-                target_len = num_chunks * 128
+                hop_length = 80 
                 mel = librosa.feature.melspectrogram(y=audio, sr=self.sr, n_mels=128, hop_length=hop_length)
                 feature = librosa.power_to_db(mel, ref=np.max)
-                feature = self.pad_or_truncate(feature, target_len)
-                chunks = [feature[:, i*128:(i+1)*128][np.newaxis, :, :] for i in range(num_chunks)]
+
+                chunks = []
+                chunk_size = 128
+                for start in range(0, feature.shape[1], chunk_size):
+
+                    end = start + chunk_size
+                    chunk = feature[:, start:end]
+
+                    if chunk.shape[1] < chunk_size:
+                        pad_width = chunk_size - chunk.shape[1]
+                        chunk = np.pad(chunk, ((0, 0), (0, pad_width)), mode='constant')
+
+                    chunks.append(torch.tensor(chunk).unsqueeze(0))
                 return torch.tensor(np.stack(chunks)).float()
             else:
                 raise ValueError("Unsupported feature type. Choose 'waveform', 'mfcc', or 'log_mel'.")
 
-    def pad_or_truncate(self, feature, target_len):
-        if feature.shape[1] < target_len:
-            pad_width = target_len - feature.shape[1]
-            feature = np.pad(feature, ((0, 0), (0, pad_width)), mode='constant')
-        else:
-            feature = feature[:, :target_len]
-        return feature
 
     def augment_waveform(self, audio):
         audio = audio + np.random.normal(0, 0.005, audio.shape)
@@ -156,3 +159,4 @@ class MELD_Dataset(Dataset):
 
 
         
+ 

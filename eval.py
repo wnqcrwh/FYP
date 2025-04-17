@@ -1,5 +1,5 @@
 from config import Config
-from data import MELD_Dataset
+from FYP.data.meld_data import MELD_Dataset
 from torch.utils.data import DataLoader
 from modules.multi_modal_model import MultiModalModel
 from utils import evaluate
@@ -10,7 +10,7 @@ test_dataset = MELD_Dataset(
     csv_path=C.test_csv_path,
     video_dir=C.test_video_dir,
     image_size=C.image_size,
-    num_frames=C.num_frames,
+    frame_rate=C.frame_rate,
     sr=C.sr,
     image_augment=C.image_augment,
     audio_augment=C.audio_augment,

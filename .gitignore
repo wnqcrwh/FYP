@@ -2,7 +2,7 @@
 MELD
 MELD.Raw.tar.gz
 __pycache__/
-1.log
-2.log
+*.log
 model
+test
 

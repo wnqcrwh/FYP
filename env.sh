@@ -13,4 +13,4 @@ source /userhome/2072/fyp24093/anaconda3/bin/activate ./condaenv
 
 
 
-python train.py 1>1.log 2>2.log &
+python train.py 1>3.log 2>4.log &

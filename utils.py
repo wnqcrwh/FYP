@@ -27,6 +27,7 @@ def evaluate(model, dataloader, criterion, device):
             preds = torch.argmax(logits, dim=1)
             correct += (preds == labels).sum().item()
             total += labels.size(0)
+            print(f"Batch Loss: {loss.item()}, Test Acc: {correct / total:.4f}")
 
     avg_loss = total_loss / total
     avg_acc = correct / total
