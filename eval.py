@@ -1,8 +1,12 @@
 from config import Config
-from FYP.data.meld_data import MELD_Dataset
+from data.meld_data import MELD_Dataset
+from data.utils import collate_fn
 from torch.utils.data import DataLoader
+import torch
+import torch.nn as nn
 from modules.multi_modal_model import MultiModalModel
 from utils import evaluate
+import os
 
 
 C=Config()
@@ -21,5 +25,39 @@ test_loader = DataLoader(
     test_dataset,
     batch_size=C.batch_size,
     shuffle=False,
-    num_workers=C.num_workers
+    num_workers=C.num_workers,
+    collate_fn=collate_fn
 )
+
+model = MultiModalModel(
+    num_classes=C.num_classes,
+    image_size=C.image_size,
+    lstm_layers=C.lstm_layers,
+    dropout=C.dropout,
+    device=C.device
+)
+if torch.cuda.device_count() > 1:
+    model = nn.DataParallel(model)
+model.to(C.device)
+
+if torch.cuda.device_count() > 1:
+    model.module.face_extractor.adjust_threshold(20, 20)
+else:
+    model.face_extractor.adjust_threshold(20, 20)
+
+checkpoint_path = os.path.join(C.model_save_path, "best_model.pth")
+if os.path.exists(checkpoint_path):
+    checkpoint = torch.load(checkpoint_path, map_location=C.device)
+    model.load_state_dict(checkpoint['model_state_dict'])
+
+criterion = nn.CrossEntropyLoss(weight=C.class_weights.to(C.device))
+
+model.eval()
+val_loss, val_acc = evaluate(model, test_loader, criterion, C.device)
+print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_acc:.4f}")
+# Save the evaluation results
+os.makedirs(C.model_save_path, exist_ok=True)
+output_path = os.path.join(C.model_save_path, "evaluation_results.txt")
+with open(output_path, 'w') as f:
+    f.write(f"Validation Loss: {val_loss:.4f}\n")
+    f.write(f"Validation Accuracy: {val_acc:.4f}\n")
