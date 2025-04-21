@@ -37,6 +37,7 @@ class Config:
         self.audio_augment = True
         self.feature_type = 'log_mel'
         self.mode = 'train'
+        self.label_names = ['neutral', 'joy', 'sadness', 'anger', 'surprise', 'fear', 'disgust']
 
         # Logging
         self.log_dir = "logs/"

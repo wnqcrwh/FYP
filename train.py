@@ -192,7 +192,7 @@ for epoch in range(loaded_epoch, C.epochs):
     train_loss = total_loss / total
     train_acc = correct / total
 
-    val_loss, val_acc = evaluate(model, dev_loader, criterion, C.device)
+    val_loss, val_acc, _, _ = evaluate(model, dev_loader, criterion, C.device)
     # Log the results
     print(f"[Epoch {epoch+1}] Train Loss: {train_loss:.4f}, Train Acc: {train_acc*100:.2f}%, Val Loss: {val_loss:.4f}, Val Acc: {val_acc*100:.2f}%")
     log_path = os.path.join(C.log_dir, "train.log")

@@ -11,6 +11,8 @@ def evaluate(model, dataloader, criterion, device):
     total_loss = 0.0
     correct = 0
     total = 0
+    all_preds = []
+    all_labels = []
 
     with torch.no_grad():
         for batch in dataloader:
@@ -27,8 +29,11 @@ def evaluate(model, dataloader, criterion, device):
             preds = torch.argmax(logits, dim=1)
             correct += (preds == labels).sum().item()
             total += labels.size(0)
+
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
             print(f"Batch Loss: {loss.item()}, Test Acc: {correct / total:.4f}")
 
     avg_loss = total_loss / total
     avg_acc = correct / total
-    return avg_loss, avg_acc
+    return avg_loss, avg_acc, all_preds, all_labels
