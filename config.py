@@ -10,6 +10,7 @@ class Config:
         self.lr = 3e-4
         self.weight_decay = 1e-4
         self.num_workers = 8
+        self.freeze_epoch = 3
         
         #calculate class weights
         train_counts = torch.tensor([1109, 271, 268, 1743, 4710, 683, 1205], dtype=torch.float32)

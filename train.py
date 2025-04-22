@@ -133,7 +133,7 @@ for epoch in range(loaded_epoch, C.epochs):
         model.module.face_extractor.adjust_threshold(epoch, C.epochs)
     else:
         model.face_extractor.adjust_threshold(epoch, C.epochs)
-    if epoch > 3:
+    if epoch > C.freeze_epoch:
         if torch.cuda.device_count() > 1:
             model.module.face_extractor.unfreeze()
         else:
